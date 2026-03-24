@@ -1,6 +1,6 @@
 use ark_bn254::Bn254;
 use ark_ec::pairing::Pairing;
-use ark_ff::Field;
+use ark_ff::{BigInteger, Field, PrimeField};
 use ark_relations::{
     lc,
     r1cs::{
@@ -19,35 +19,29 @@ use curg_groth16_research::{
 // 제약 전략: in = d + 10 (d >= 0) 을 비트 분해로 강제
 #[derive(Clone)]
 struct GreaterThanTenCircuit<F: Field> {
-    // Private witness (검증자에게 비공개)
     pub in_: Option<F>,
-    // Private witnesses
     pub d:   Option<F>,
-    pub d0:  Option<F>,  // d의 비트 0 (2⁰)
-    pub d1:  Option<F>,  // d의 비트 1 (2¹)
-    pub d2:  Option<F>,  // d의 비트 2 (2²)
-    pub d3:  Option<F>,  // d의 비트 3 (2³)
-    pub in0: Option<F>,  // in의 비트 0 (2⁰)
-    pub in1: Option<F>,  // in의 비트 1 (2¹)
-    pub in2: Option<F>,  // in의 비트 2 (2²)
-    pub in3: Option<F>,  // in의 비트 3 (2³)
 }
 
-impl<F: Field> ConstraintSynthesizer<F> for GreaterThanTenCircuit<F> {
+impl<F: PrimeField> ConstraintSynthesizer<F> for GreaterThanTenCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> R1CSResult<()> {
         // ── 변수 할당 ──────────────────────────────────────────────────────────
+        let in_val = self.in_.unwrap_or_default();
+        let d_val  = self.d.unwrap_or_default();
+
         let in_ = cs.new_witness_variable(|| self.in_.ok_or(SynthesisError::AssignmentMissing))?;
+        let d   = cs.new_witness_variable(|| self.d.ok_or(SynthesisError::AssignmentMissing))?;
 
-        let d  = cs.new_witness_variable(|| self.d.ok_or(SynthesisError::AssignmentMissing))?;
-        let d0 = cs.new_witness_variable(|| self.d0.ok_or(SynthesisError::AssignmentMissing))?;
-        let d1 = cs.new_witness_variable(|| self.d1.ok_or(SynthesisError::AssignmentMissing))?;
-        let d2 = cs.new_witness_variable(|| self.d2.ok_or(SynthesisError::AssignmentMissing))?;
-        let d3 = cs.new_witness_variable(|| self.d3.ok_or(SynthesisError::AssignmentMissing))?;
-
-        let in0 = cs.new_witness_variable(|| self.in0.ok_or(SynthesisError::AssignmentMissing))?;
-        let in1 = cs.new_witness_variable(|| self.in1.ok_or(SynthesisError::AssignmentMissing))?;
-        let in2 = cs.new_witness_variable(|| self.in2.ok_or(SynthesisError::AssignmentMissing))?;
-        let in3 = cs.new_witness_variable(|| self.in3.ok_or(SynthesisError::AssignmentMissing))?;
+        // d와 in의 비트값을 into_bigint()로 자동 계산
+        let bit = |v: F, i: usize| F::from(v.into_bigint().get_bit(i) as u64);
+        let d0  = cs.new_witness_variable(|| Ok(bit(d_val,   0)))?;
+        let d1  = cs.new_witness_variable(|| Ok(bit(d_val,   1)))?;
+        let d2  = cs.new_witness_variable(|| Ok(bit(d_val,   2)))?;
+        let d3  = cs.new_witness_variable(|| Ok(bit(d_val,   3)))?;
+        let in0 = cs.new_witness_variable(|| Ok(bit(in_val,  0)))?;
+        let in1 = cs.new_witness_variable(|| Ok(bit(in_val,  1)))?;
+        let in2 = cs.new_witness_variable(|| Ok(bit(in_val,  2)))?;
+        let in3 = cs.new_witness_variable(|| Ok(bit(in_val,  3)))?;
 
         // ── 제약 1: in = d + 10  →  (d + 10) × 1 = in ────────────────────────
         cs.enforce_constraint(
@@ -90,20 +84,17 @@ fn main() {
     type P = Bn254;
     type ScalarField = <P as Pairing>::ScalarField;
 
-    // in = 13 > 10  →  d = in - 10 = 3
-    // in = 13 = 1101₂  →  in0=1, in1=0, in2=1, in3=1  (1 + 0 + 4 + 8 = 13)
-    // d  =  3 = 0011₂  →  d0=1,  d1=1,  d2=0,  d3=0  (1 + 2 + 0 + 0 = 3)
+    // ── 입력 범위 ─────────────────────────────────────────────────────────────
+    // 이 서킷은 4비트(0~15) 분해를 사용하므로 아래 범위를 벗어나면 constraint 불만족.
+    //
+    //   in_  : 10 ~ 15   (4비트 범위 내에서 10 이상이어야 함)
+    //   d    :  0 ~  5   (d = in - 10 이므로 in의 범위에 따라 결정됨)
+    //
+    // 예) in=10 → d=0 / in=13 → d=3 / in=15 → d=5
+    // ──────────────────────────────────────────────────────────────────────────
     let c = GreaterThanTenCircuit {
-        in_: Some(ScalarField::from(13u64)),
-        d:   Some(ScalarField::from(3u64)),
-        d0:  Some(ScalarField::from(1u64)),
-        d1:  Some(ScalarField::from(1u64)),
-        d2:  Some(ScalarField::from(0u64)),
-        d3:  Some(ScalarField::from(0u64)),
-        in0: Some(ScalarField::from(1u64)),
-        in1: Some(ScalarField::from(0u64)),
-        in2: Some(ScalarField::from(1u64)),
-        in3: Some(ScalarField::from(1u64)),
+        in_: Some(ScalarField::from(15u64)),
+        d:   Some(ScalarField::from(5u64)),
     };
 
 
