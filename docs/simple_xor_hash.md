@@ -46,7 +46,7 @@ $$
 Simple XOR Hash는 다음과 같이 정의됩니다.
 
 $$
-H(\text{issuer\_id},\ \text{holder\_name},\ \text{dob\_year}) = \text{dob\_year} \oplus \Bigl(\text{holder\_name} \oplus (\text{IV} \oplus \text{issuer\_id})\Bigr)
+H(\text{issuer\_id},\ \text{holder\_name},\ \text{dob\_year}) = \text{dob\_year} \oplus \left(\text{holder\_name} \oplus \left(\text{IV} \oplus \text{issuer\_id}\right)\right)
 $$
 
 여기서 $\oplus$ 는 32비트 XOR, IV(Initial Value)는 서킷 설계 시 고정되는 32비트 공개 상수입니다.
@@ -73,7 +73,7 @@ $$
 전체 제약 구성은 다음과 같습니다.
 
 $$
-\underbrace{3}_{\text{비트 분해}} + \underbrace{96}_{\text{Bool 체크}} + \underbrace{0}_{\text{Round 1 (상수 XOR)}} + \underbrace{32}_{\text{Round 2 AND}} + \underbrace{32}_{\text{Round 3 AND}} + \underbrace{1}_{\text{Packing}} = 164
+\underbrace{3}_{\text{비트 분해}} + \underbrace{96}_{\text{Bool 체크}} + \underbrace{0}_{\text{Round 1 상수 XOR}} + \underbrace{32}_{\text{Round 2 AND}} + \underbrace{32}_{\text{Round 3 AND}} + \underbrace{1}_{\text{Packing}} = 164
 $$
 
 ## 제약사항 (1~3): 비트 분해
@@ -99,7 +99,7 @@ $$
 예를 들어 $\text{issuer\_id} = 5$라면:
 
 $$
-5 = [\underbrace{0}_{f^{(1)}_{31}} \cdots \underbrace{0}_{f^{(1)}_3}\ \underbrace{1}_{f^{(1)}_2}\ \underbrace{0}_{f^{(1)}_1}\ \underbrace{1}_{f^{(1)}_0}]
+5 = [\underbrace{0}_{31} \cdots \underbrace{0}_{3}\ \underbrace{1}_{2}\ \underbrace{0}_{1}\ \underbrace{1}_{0}]
 $$
 
 $$
@@ -209,7 +209,7 @@ Poseidon 해시(555개)와 비교하면 약 **3.4배 적은 제약**입니다. O
 세 필드를 직접 XOR 연산하여 해시 $H$를 계산하고 공개합니다.
 
 $$
-H = \text{dob\_year} \oplus \bigl(\text{holder\_name} \oplus (\text{IV} \oplus \text{issuer\_id})\bigr)
+H = \text{dob\_year} \oplus \left(\text{holder\_name} \oplus \left(\text{IV} \oplus \text{issuer\_id}\right)\right)
 $$
 
 **온체인 / 서킷 (Verifier 측):**
